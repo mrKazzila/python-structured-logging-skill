@@ -1,0 +1,109 @@
+name: Bug report
+description: Report a problem with the Python structured logging skill or its bundled references/examples
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug.
+        Please include a minimal reproduction prompt, code snippet, or output diff so the issue can be reproduced quickly.
+
+  - type: input
+    id: skill_version
+    attributes:
+      label: Plugin or skill version
+      description: The released version, commit SHA, or branch name you tested.
+      placeholder: "e.g., 0.1.0 or main@abcdef1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - SKILL.md instructions
+        - structlog examples
+        - stdlib logging examples
+        - reference guide
+        - plugin packaging / installation
+        - README / docs
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: logging_stack
+    attributes:
+      label: Logging stack
+      description: Select the stack involved in the problem, if relevant.
+      options:
+        - structlog
+        - standard library logging
+        - loguru
+        - mixed / project wrapper
+        - not applicable
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+      placeholder: "The skill recommends a pattern that duplicates exception logs across layers."
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+      placeholder: "The skill should recommend one operator-facing exception log with bound context."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Provide the smallest prompt, code snippet, or workflow that reproduces the issue.
+      placeholder: |
+        Prompt:
+        "Use $python-structured-logging to review this FastAPI handler ..."
+
+        Code:
+        ```python
+        ...
+        ```
+    validations:
+      required: true
+
+  - type: textarea
+    id: affected_files
+    attributes:
+      label: Affected files or paths
+      description: Point to the relevant skill files if you know them.
+      placeholder: |
+        plugins/python-structured-logging/skills/python-structured-logging/SKILL.md
+        plugins/python-structured-logging/skills/python-structured-logging/examples/structlog/good.py
+
+  - type: textarea
+    id: logs_or_output
+    attributes:
+      label: Output, logs, or diff (optional)
+      description: Paste relevant agent output, validation output, or before/after code.
+      render: shell
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-flight checks
+      options:
+        - label: I searched existing issues to avoid duplicates.
+          required: false
+        - label: I checked the README and bundled reference guide first.
+          required: false
+        - label: I included a minimal reproduction prompt, code snippet, or file path.
+          required: false

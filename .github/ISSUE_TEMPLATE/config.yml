@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://github.com/mrKazzila/python-structured-logging-skill#readme
+    about: Check the README for installation and repo layout.
+  - name: Skill Reference Guide
+    url: https://github.com/mrKazzila/python-structured-logging-skill/blob/main/plugins/python-structured-logging/skills/python-structured-logging/references/Python%20Logging%20Style%20Guide.md
+    about: Review the bundled Python logging guidance before opening a question.

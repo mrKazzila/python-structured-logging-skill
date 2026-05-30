@@ -1,0 +1,47 @@
+name: Question / Help
+description: Ask about skill usage, installation, or logging guidance
+title: "[Question]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ask about installation, expected skill behavior, or Python logging guidance.
+        If your question is about a recommendation, include the relevant code or prompt.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+      placeholder: "When should this skill recommend structlog.bind() instead of stdlib LoggerAdapter?"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: topic
+    attributes:
+      label: Topic
+      options:
+        - Installing the plugin / skill
+        - Using the skill in Codex or Claude Code
+        - structlog guidance
+        - standard library logging guidance
+        - examples / references
+        - contributing to the repo
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context (optional)
+      description: Include the relevant prompt, code snippet, or file path if it helps.
+      placeholder: |
+        Prompt:
+        "Use $python-structured-logging to review this worker ..."
+
+        Code:
+        ```python
+        ...
+        ```
