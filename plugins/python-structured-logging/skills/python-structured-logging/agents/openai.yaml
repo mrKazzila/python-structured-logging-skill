@@ -1,0 +1,4 @@
+interface:
+  display_name: "Python Structured Logging"
+  short_description: "Improve structured logging in Python services"
+  default_prompt: "Use $python-structured-logging to review and improve structured logging in this Python codebase."

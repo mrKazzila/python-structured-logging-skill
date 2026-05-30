@@ -1,0 +1,13 @@
+{
+  "name": "python-structured-logging-skill",
+  "owner": {
+    "name": "Kazzai"
+  },
+  "plugins": [
+    {
+      "name": "python-structured-logging",
+      "source": "./plugins/python-structured-logging",
+      "description": "Structured logging skill for Python services."
+    }
+  ]
+}

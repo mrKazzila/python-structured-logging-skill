@@ -1,0 +1,10 @@
+{
+  "name": "python-structured-logging-skill",
+  "plugins": [
+    {
+      "name": "python-structured-logging",
+      "source": "./plugins/python-structured-logging",
+      "description": "Structured logging skill for Python services."
+    }
+  ]
+}
