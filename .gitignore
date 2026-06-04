@@ -1,1 +1,6 @@
 /just/local.just
+.idea
+.venv
+venv
+.uv*
+.DS_Store

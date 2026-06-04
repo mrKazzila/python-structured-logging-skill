@@ -4,35 +4,47 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def process_invoice(invoice_id: str, customer_id: str, attempt: int, duration_ms: int) -> None:
-    logger.info(
-        "invoice_processing_started",
-        extra={
-            "invoice_id": invoice_id,
-            "customer_id": customer_id,
-            "attempt": attempt,
-        },
-    )
+class PaymentGatewayError(RuntimeError):
+    pass
+
+
+def process_invoice(
+    invoice_id: str,
+    customer_id: str,
+    request_id: str,
+    attempt: int,
+    amount_cents: int,
+) -> None:
+    shared_context = {
+        "request_id": request_id,
+        "invoice_id": invoice_id,
+        "customer_id": customer_id,
+        "attempt": attempt,
+    }
+    safe_payment = {
+        "amount_cents": amount_cents,
+        "card_last4": "4242",
+    }
 
     try:
+        if amount_cents < 0:
+            raise PaymentGatewayError("negative amount")
+
         logger.info(
             "invoice_processed",
             extra={
-                "invoice_id": invoice_id,
-                "customer_id": customer_id,
-                "attempt": attempt,
+                **shared_context,
                 "status": "success",
-                "duration_ms": duration_ms,
+                "payment": safe_payment,
             },
         )
-    except Exception:
+    except PaymentGatewayError:
         logger.exception(
             "invoice_processing_failed",
             extra={
-                "invoice_id": invoice_id,
-                "customer_id": customer_id,
-                "attempt": attempt,
+                **shared_context,
                 "retryable": True,
+                "payment": safe_payment,
             },
         )
         raise

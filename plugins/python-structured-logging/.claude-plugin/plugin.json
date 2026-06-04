@@ -1,5 +1,5 @@
 {
   "name": "python-structured-logging",
-  "description": "Adds a skill for adding, reviewing, and refactoring structured logging in Python services.",
+  "description": "Adds the python-structured-logging skill for reviewing and improving Python application logs.",
   "version": "0.1.0"
 }

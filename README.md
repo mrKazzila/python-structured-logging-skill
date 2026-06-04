@@ -1,12 +1,10 @@
 # Python Structured Logging Skill
 
-Agent skill for adding, reviewing, refactoring, and standardizing structured logging in Python services. This repo follows the [Agent Skills specification](https://agentskills.io/specification), so it can be used by skills-compatible agents including Claude Code and Codex CLI.
+`python-structured-logging` is a skill for coding agents working in Python codebases that need clearer, safer, and more queryable logs. It helps with practical tasks such as reviewing noisy log statements, replacing `print` debugging, standardizing event names and fields, and improving exception logging.
 
-The bundled skill is:
+The canonical skill id is `python-structured-logging`. This repository is named `python-structured-logging-skill` and packages that skill for skills-compatible agent environments.
 
-- `python-structured-logging`: Improve Python logging with a `structlog`-first approach, while also supporting the standard library `logging` module. Covers event naming, structured fields, bound context, exception logging, correlation IDs, noise reduction, and sensitive-data redaction.
-
-## Installation
+## Quickstart
 
 ### Marketplace
 
@@ -15,29 +13,31 @@ The bundled skill is:
 /plugin install python-structured-logging@python-structured-logging-skill
 ```
 
+Use the marketplace path only if your agent runtime supports these plugin commands.
+
 ### npx skills
 
 ```text
 npx skills add git@github.com:mrKazzila/python-structured-logging-skill.git
 ```
 
-Instead of SSH, if you prefer HTTPS:
+If you prefer HTTPS:
 
 ```text
 npx skills add https://github.com/mrKazzila/python-structured-logging-skill
 ```
 
-### Manually
+### Manual install
 
 #### Claude Code
 
-Copy the contents of this repo into a `/.claude` folder in the root of the project where you want the skill to be available.
+Copy this repository into the target project's `/.claude` folder.
 
 See the [official Claude Skills documentation](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview).
 
 #### Codex CLI
 
-Copy the contents of [`plugins/python-structured-logging/skills/`](plugins/python-structured-logging/skills/) into your Codex skills path, typically `~/.codex/skills`.
+Copy [`plugins/python-structured-logging/skills/python-structured-logging`](plugins/python-structured-logging/skills/python-structured-logging) into your Codex skills path, typically `~/.codex/skills/python-structured-logging`.
 
 See the [Agent Skills specification](https://agentskills.io/specification) for the standard skill format.
 
@@ -51,18 +51,45 @@ git clone https://github.com/mrKazzila/python-structured-logging-skill.git ~/.op
 
 Do not copy only the inner `skills/` folder. OpenCode auto-discovers `SKILL.md` files under `~/.opencode/skills/`.
 
-## Skills
+The skill inspects the logging stack already in use before changing anything. If the project already uses `structlog`, it leans into bound context and structured fields. If the project intentionally uses stdlib `logging`, it improves event names, `extra` payloads, and traceback handling without forcing a migration.
 
-| Skill | Description |
-|-------|-------------|
-| [python-structured-logging](plugins/python-structured-logging/skills/python-structured-logging) | Add, review, refactor, and standardize structured logging in Python codebases, primarily with `structlog` and secondarily with the standard library `logging` module |
+## What's Inside
 
-## Validation
+- Main skill: [`plugins/python-structured-logging/skills/python-structured-logging/SKILL.md`](plugins/python-structured-logging/skills/python-structured-logging/SKILL.md)
+- Examples: [`examples/structlog`](plugins/python-structured-logging/skills/python-structured-logging/examples/structlog) and [`examples/stdlib`](plugins/python-structured-logging/skills/python-structured-logging/examples/stdlib)
+- Reference guide: [`references/Python Logging Style Guide.md`](plugins/python-structured-logging/skills/python-structured-logging/references/Python Logging Style Guide.md)
+- Agent metadata: [`agents/openai.yaml`](plugins/python-structured-logging/skills/python-structured-logging/agents/openai.yaml)
 
-To validate the skill folder structure and frontmatter, run:
+## When to Use This Skill
+
+- Adding or upgrading logging in a Python service, worker, CLI, or background job.
+- Reviewing whether existing logs are structured, stable, and operationally useful.
+- Replacing `print` statements and ad hoc debug logging.
+- Introducing structured fields into existing `structlog` or stdlib `logging` code.
+- Standardizing event names and field names across modules or teams.
+- Debugging production behavior that needs better context and lower noise.
+
+## When Not to Use
+
+- The user explicitly asked not to change logging behavior.
+- The task is a one-off throwaway script where logging would add more noise than value.
+- The project has strict logging conventions and the current task is unrelated to logging or observability.
+
+## Verify / Contribute
+
+- Edit the skill or reference guide.
+- Update examples if the recommended behavior changes.
+- Run checks before finishing:
 
 ```sh
-uv run --with pyyaml python "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-creator/scripts/quick_validate.py" plugins/python-structured-logging/skills/python-structured-logging
+just validate
+python scripts/check_release_state.py
 ```
 
-This uses the validator bundled with the local `skill-creator` skill installation.
+- `just validate` uses `uv` plus `pyyaml`. If `pyyaml` is not already available, `uv` may need a writable cache and network access to fetch it.
+- `uv run python scripts/check_release_state.py` is an equivalent release-state check if you prefer to keep the command under `uv`.
+- Keep the skill concise, direct, and usable by agents during review and refactoring.
+
+## License
+
+This project is licensed under the terms in [LICENSE](LICENSE).
