@@ -1,0 +1,111 @@
+{
+  "cases": [
+    {
+      "id": "stdlib_refactor",
+      "should_trigger": true,
+      "fixtures": [
+        "plugins/python-structured-logging/skills/python-structured-logging/examples/stdlib/bad.py"
+      ],
+      "prompt": "Improve logging in bad.py using the existing stdlib stack. Preserve its signature and business behavior. Demonstrate fields in rendered output with a test formatter.",
+      "criteria": [
+        "No structlog dependency or arbitrary keyword fields are introduced.",
+        "Success returns None; negative amount raises PaymentGatewayError with the original message.",
+        "Rendered output contains invoice and request IDs; the failure has one traceback record.",
+        "No module-level handler installation or global logging reconfiguration is introduced."
+      ]
+    },
+    {
+      "id": "structlog_refactor",
+      "should_trigger": true,
+      "fixtures": [
+        "plugins/python-structured-logging/skills/python-structured-logging/examples/structlog/bad.py"
+      ],
+      "prompt": "Improve logging in bad.py while preserving the current stack, function signature, and exception behavior.",
+      "criteria": [
+        "A stable event and structured fields replace interpolated variable event names.",
+        "Successful input returns None and negative input still raises PaymentGatewayError.",
+        "A failure produces one record with traceback; negative input is not marked retryable."
+      ]
+    },
+    {
+      "id": "review_only",
+      "should_trigger": true,
+      "fixtures": [
+        "plugins/python-structured-logging/skills/python-structured-logging/examples/stdlib/bad.py"
+      ],
+      "prompt": "Review the logging in bad.py. Report issues and concrete effects. Do not modify files.",
+      "criteria": [
+        "Fixture checksums are unchanged and no new project files appear.",
+        "Findings identify dynamic events and missing traceback with file locations.",
+        "No migration or code edit is performed."
+      ]
+    },
+    {
+      "id": "event_contract",
+      "should_trigger": true,
+      "fixtures": [
+        "evals/fixtures/service.py"
+      ],
+      "prompt": "Add amount_cents to the success log in service.py. Existing dotted event names are consumed by production alerts and must remain unchanged.",
+      "criteria": [
+        "Both dotted event names remain unchanged.",
+        "The success LogRecord contains amount_cents.",
+        "Function signatures, return values and exception behavior remain unchanged."
+      ]
+    },
+    {
+      "id": "exception_owner",
+      "should_trigger": true,
+      "fixtures": [
+        "evals/fixtures/service.py"
+      ],
+      "prompt": "Review exception logging across charge and handle_invoice. Change it only if necessary to prevent duplicate failure records.",
+      "criteria": [
+        "One call with negative input produces exactly one failure record with traceback.",
+        "The ValueError still propagates.",
+        "No failure log is added to charge; leaving correct logging unchanged is acceptable."
+      ]
+    },
+    {
+      "id": "context_lifecycle",
+      "should_trigger": true,
+      "fixtures": [
+        "evals/fixtures/async_jobs.py"
+      ],
+      "prompt": "Fix job context leaking into worker_idle in async_jobs.py. Preserve event names and ensure overlapping jobs retain their own IDs.",
+      "criteria": [
+        "Run the program and decode every JSON line.",
+        "Each job_processed event has its own job_id: one, two, three.",
+        "worker_idle has no job_id.",
+        "Cleanup also executes if processing raises; demonstrate that path with a focused test."
+      ]
+    },
+    {
+      "id": "unrelated_cli",
+      "should_trigger": false,
+      "fixtures": [
+        "evals/fixtures/cli.py"
+      ],
+      "prompt": "Change render_total to include currency USD in its JSON output. Preserve stdout as the result stream.",
+      "criteria": [
+        "The logging skill is not implicitly selected.",
+        "JSON on stdout contains amount_cents and currency USD.",
+        "No logging dependency, configuration, or conversion of print to logging is introduced."
+      ]
+    },
+    {
+      "id": "sensitive_output",
+      "should_trigger": true,
+      "fixtures": [
+        "evals/fixtures/sensitive.py"
+      ],
+      "prompt": "Make logging in sensitive.py safe for payloads containing synthetic credentials. Preserve exception propagation. Verify the rendered failure output.",
+      "criteria": [
+        "Neither the synthetic marker nor payload credentials occur anywhere in rendered logs.",
+        "The original ValueError still propagates with its original message.",
+        "The solution checks exception text as well as structured fields.",
+        "The record retains enough operation and error-type information to diagnose the failure."
+      ]
+    }
+  ]
+}

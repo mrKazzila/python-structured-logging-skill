@@ -29,27 +29,26 @@ npx skills add https://github.com/mrKazzila/python-structured-logging-skill
 
 ### Manual install
 
-#### Claude Code
+Copy the inner `plugins/python-structured-logging/skills/python-structured-logging` directory, including its examples and references. Run these commands from the repository root; choose the location for your client.
 
-Copy this repository into the target project's `/.claude` folder.
+| Client / scope | Destination |
+| --- | --- |
+| Claude Code / project | `<project>/.claude/skills/python-structured-logging` |
+| Codex / user | `~/.agents/skills/python-structured-logging` |
+| OpenCode / user | `~/.config/opencode/skills/python-structured-logging` |
 
-See the [official Claude Skills documentation](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview).
-
-#### Codex CLI
-
-Copy [`plugins/python-structured-logging/skills/python-structured-logging`](plugins/python-structured-logging/skills/python-structured-logging) into your Codex skills path, typically `~/.codex/skills/python-structured-logging`.
-
-See the [Agent Skills specification](https://agentskills.io/specification) for the standard skill format.
-
-#### OpenCode
-
-Clone the entire repo into the OpenCode skills directory:
+For example, for Codex:
 
 ```sh
-git clone https://github.com/mrKazzila/python-structured-logging-skill.git ~/.opencode/skills/python-structured-logging-skill
+mkdir -p ~/.agents/skills
+cp -R plugins/python-structured-logging/skills/python-structured-logging ~/.agents/skills/
 ```
 
-Do not copy only the inner `skills/` folder. OpenCode auto-discovers `SKILL.md` files under `~/.opencode/skills/`.
+For an existing installation, update its contents rather than nesting another copy. Do not copy the entire repository into a skill directory.
+
+Verify discovery in a fresh client session: use `/python-structured-logging` for a manually installed Claude Code skill, `/skills` or `$python-structured-logging` in Codex, or ask OpenCode to list available skills. For Claude plugin installation, the command is namespaced as `/python-structured-logging:python-structured-logging`.
+
+See the official [Claude Code](https://code.claude.com/docs/en/skills), [Codex](https://learn.chatgpt.com/docs/build-skills), and [OpenCode](https://opencode.ai/docs/skills/) documentation. Paths were checked against documentation on 2026-09-18; discovery still needs a smoke test in your client version.
 
 The skill inspects the logging stack already in use before changing anything. If the project already uses `structlog`, it leans into bound context and structured fields. If the project intentionally uses stdlib `logging`, it improves event names, `extra` payloads, and traceback handling without forcing a migration.
 
@@ -71,24 +70,33 @@ The skill inspects the logging stack already in use before changing anything. If
 
 ## When Not to Use
 
-- The user explicitly asked not to change logging behavior.
+- The task is unrelated to logging. Review-only requests are supported and must not change files.
 - The task is a one-off throwaway script where logging would add more noise than value.
 - The project has strict logging conventions and the current task is unrelated to logging or observability.
 
 ## Verify / Contribute
 
-- Edit the skill or reference guide.
-- Update examples if the recommended behavior changes.
-- Run checks before finishing:
+Requires Python 3.12+ and either `uv` with `just`, or a Python virtual environment. No local Codex installation is needed.
 
 ```sh
-just validate
-python scripts/check_release_state.py
+just check
 ```
 
-- `just validate` uses `uv` plus `pyyaml`. If `pyyaml` is not already available, `uv` may need a writable cache and network access to fetch it.
-- `uv run python scripts/check_release_state.py` is an equivalent release-state check if you prefer to keep the command under `uv`.
-- Keep the skill concise, direct, and usable by agents during review and refactoring.
+Equivalent commands without `just` or `uv`:
+
+```sh
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-dev.txt
+.venv/bin/python scripts/validate_repo.py
+.venv/bin/python -m unittest discover -s tests -v
+.venv/bin/python scripts/check_release_state.py
+```
+
+Dependencies are pinned in `requirements-dev.txt`. The first installation requires access to a package index. `just validate` runs structural validation; `just test` runs executable example and validator regression checks. CI runs these checks on pull requests, branch pushes, and before a release.
+
+Behavioral agent evaluation is separate: see [evals/README.md](evals/README.md) for fixtures, prompts, acceptance criteria, and skill/no-skill comparisons. Passing structural checks does not establish agent quality.
+
+Keep changes scoped and update examples or eval cases when the recommended behavior changes.
 
 ## License
 

@@ -1,6 +1,5 @@
 import structlog
 
-
 logger = structlog.get_logger(__name__)
 
 
@@ -15,30 +14,19 @@ def process_invoice(
     attempt: int,
     amount_cents: int,
 ) -> None:
-    log = logger.bind(
-        request_id=request_id,
-        invoice_id=invoice_id,
-        customer_id=customer_id,
-        attempt=attempt,
-    )
-    safe_payment = {
-        "amount_cents": amount_cents,
-        "card_last4": "4242",
+    # This operation owns the failure record; callers propagate without logging.
+    context = {
+        "request_id": request_id,
+        "invoice_id": invoice_id,
+        "customer_id": customer_id,
+        "attempt": attempt,
     }
-
+    log = logger.bind(**context)
     try:
         if amount_cents < 0:
             raise PaymentGatewayError("negative amount")
 
-        log.info(
-            "invoice_processed",
-            status="success",
-            payment=safe_payment,
-        )
+        log.info("invoice_processed", amount_cents=amount_cents)
     except PaymentGatewayError:
-        log.exception(
-            "invoice_processing_failed",
-            retryable=True,
-            payment=safe_payment,
-        )
+        log.exception("invoice_processing_failed", retryable=False)
         raise

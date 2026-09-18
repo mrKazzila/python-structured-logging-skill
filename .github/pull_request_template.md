@@ -16,7 +16,7 @@ Describe what this PR changes and why.
 - [ ] `examples/stdlib/`
 - [ ] plugin metadata
 - [ ] `README.md`
-- [ ] `_.github/`
+- [ ] `.github/`
 
 ## Behavior impact
 Explain any user-visible change in skill triggering, recommendations, examples, or installation flow.
@@ -37,7 +37,7 @@ Notes (include details if you could not run something):
 - [ ] Updated examples to match the guidance
 
 ## Checklist
-- [ ] I kept the repo aligned with a `structlog`-first but Python-wide logging stance
+- [ ] I kept the repo aligned with the existing logging stack and user-requested scope
 - [ ] I did not silently contradict the bundled reference guide
 - [ ] I preserved the split between `structlog` and stdlib examples where applicable
 - [ ] I kept installation and metadata paths consistent with the current repo layout

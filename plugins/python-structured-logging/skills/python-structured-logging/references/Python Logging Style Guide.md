@@ -1,210 +1,41 @@
-# Python Logging Style Guide
+# Python Logging Integration Notes
 
-Use this reference when you need human-oriented guidance for reviewing or improving logs in Python code. The skill file is the execution checklist; this guide adds rationale, examples, and migration patterns. Prefer `structlog` when the project already uses it, and keep stdlib `logging` when the project intentionally standardized on it.
+Read the section relevant to the current stack or failure mode. Shared scope and naming rules live in `SKILL.md`.
 
-## Core Rules
+## Output pipeline
 
-- Treat each log as an operational event.
-- Keep event names short, stable, and in `snake_case`.
-- Put variable data into fields, not interpolated prose.
-- Bind shared context once when possible.
-- Preserve stack traces for unexpected failures.
-- Redact sensitive data before it reaches logs.
-- Keep debug noise on a short leash.
+Stdlib `extra` adds attributes to a LogRecord; a default text formatter does not include arbitrary attributes. Inspect the project's formatter before claiming the output is structured. Preserve the existing handler configuration; reusable modules should not call `basicConfig()` or install root handlers.
 
-## Event Naming
+Use `extra={"invoice_id": invoice_id}` with stdlib, and `invoice_id=invoice_id` with structlog. Do not use reserved LogRecord keys such as `name`, `message`, or `levelname` as `extra` fields. Formatter-required fields must also be handled for third-party records that lack them.
 
-Prefer event names like:
+Capture the final rendered output as well as records. Check JSON decoding where JSON is the configured format, field types, exception rendering, and duplicate records from handler propagation. A test that only captures the pre-render event dictionary cannot establish downstream compatibility.
 
-```python
-"invoice_processed"
-"retry_scheduled"
-"broker_publish_failed"
-```
+## Context lifecycle
 
-Avoid event names like:
+`logger.bind(...)` returns a logger with additional context; pass that logger to code that needs it. It does not automatically enrich independent loggers elsewhere.
 
-```python
-"Invoice processed successfully!"
-f"invoice_{invoice_id}_processed"
-"something went wrong"
-```
+For a structlog application already using contextvars, check that `merge_contextvars` is in the processor chain. Clear context at the start of a request/job, then bind its identifiers. Reset or clear context when the operation ends, including failure paths. Use scoped binding/token reset for nested operations that must restore parent context instead of clearing it.
 
-Good:
+Test two overlapping requests with distinct IDs and a subsequent operation with no ID. Their outputs must not share identifiers. Thread/task boundaries and hybrid sync/async frameworks may require explicit propagation; do not assume every execution context shares the same values.
 
-```python
-logger.info("invoice_processed", invoice_id=invoice_id, duration_ms=duration_ms)
-```
+For stdlib, retain the existing adapter, filter, or record factory. Check the supported Python version and adapter behavior before relying on per-call `extra` merging.
 
-Bad:
+## Exception ownership and sensitive output
 
-```python
-logger.info(f"invoice {invoice_id} processed in {duration_ms} ms")
-```
+Choose the owner based on the call chain: a request boundary, worker, or command may already record failures. Adding another exception log below it can duplicate alerts. If a lower layer owns the only failure record and propagates the exception, document that its caller must not log it again.
 
-## Field Naming Conventions
+`logger.exception` normally renders the exception message too. Allowlisting structured fields alone does not sanitize credentials embedded in a URL, exception text, or captured locals. Exercise the configured sanitizer with synthetic sensitive values and inspect its final output. Never use real secrets as fixtures.
 
-Use stable `snake_case` field names and explicit units.
+The paired examples use a non-retryable negative amount to illustrate preserved behavior. Both versions raise the same exception for the same input. The good version changes logging only; it does not add retry logic or invent payment metadata.
 
-Preferred fields:
+## Event contracts and migration
 
-```text
-request_id
-correlation_id
-job_id
-user_id
-entity_id
-status
-reason
-error_code
-duration_ms
-delay_seconds
-size_bytes
-attempt
-max_attempts
-```
+Before renaming an event, inspect repository-owned dashboards, alerts, queries, and tests when available. Keep existing conventions such as dotted events when the task does not authorize a schema migration. If downstream consumers are external and cannot be checked, report that limitation.
 
-Guidelines:
+For requested migrations, explain old-to-new names and consumer updates. Diagnostic prints can become logs; intentional CLI results must remain on the expected output stream.
 
-- One concept should keep one name across the project.
-- IDs should normally end with `_id`.
-- Units belong in the key name, not only in the value.
-- Avoid repeating the same shared fields on every log if the stack supports binding or adapters.
+## Sources
 
-When logging payload-derived data, prefer allowlisted fragments over whole payloads. For example, log `card_last4`, `amount_cents`, or `item_count`, not the raw request body.
-
-## Level Guide
-
-- `DEBUG`: local diagnostics and temporary deep inspection.
-- `INFO`: expected business or operational events.
-- `WARNING`: degraded but handled situations such as retries or fallbacks.
-- `ERROR`: a concrete operation failed and needs attention.
-- `CRITICAL`: service-threatening state or probable data-loss scenario.
-
-Do not log every function entry and exit at `INFO`. Use `DEBUG` sparingly, and only when the details are actionable.
-
-## Exception Logging
-
-Use `logger.exception(...)` inside `except` when you need traceback data.
-
-Good:
-
-```python
-try:
-    publish(message)
-except ProviderTimeoutError:
-    logger.exception("publish_failed", message_id=message_id, retryable=True)
-    raise
-```
-
-Bad:
-
-```python
-try:
-    publish(message)
-except Exception as exc:
-    logger.error(f"publish failed: {exc}")
-```
-
-Rules:
-
-- Do not log and swallow unless that is the intended control flow.
-- Do not duplicate the same exception log at every layer.
-- Add enough context for operators to know what failed and whether it will retry.
-- Avoid `logger.error(str(exc))` as the only record for an unexpected failure.
-
-## Sensitive Data
-
-Never log:
-
-- passwords
-- tokens
-- API keys
-- cookies
-- authorization headers
-- private keys
-- raw secrets
-- raw request bodies
-- raw response bodies
-- session data
-- personal data
-- payment data
-- raw payloads containing PII or credentials
-
-Prefer allowlisted payload logging.
-
-Good:
-
-```python
-logger.info(
-    "payment_authorized",
-    payment={"amount_cents": amount_cents, "card_last4": card_last4},
-)
-```
-
-Bad:
-
-```python
-logger.info("payment_authorized", payload=payment_payload, auth_header=auth_header)
-```
-
-## structlog and stdlib Patterns
-
-`structlog`:
-
-```python
-log = logger.bind(request_id=request_id, job_id=job_id)
-log.info("job_started", task_name=task_name)
-```
-
-Stdlib `logging`:
-
-```python
-logger.info(
-    "job_started",
-    extra={"request_id": request_id, "job_id": job_id, "task_name": task_name},
-)
-```
-
-In both styles, keep the event name stable and treat the surrounding fields as the query surface. If a downstream formatter or adapter already shapes the record, follow that path instead of inventing a parallel one.
-
-## Migration Notes
-
-From `print` debugging:
-
-```python
-print("processing invoice", invoice_id)
-```
-
-To structured logging:
-
-```python
-logger.debug("invoice_processing", invoice_id=invoice_id)
-```
-
-From prose logging:
-
-```python
-logger.info(f"user {user_id} updated account status to {status}")
-```
-
-To structured events:
-
-```python
-logger.info("account_status_updated", user_id=user_id, status=status)
-```
-
-From repeated manual context:
-
-```python
-logger.info("step_one", request_id=request_id, user_id=user_id)
-logger.info("step_two", request_id=request_id, user_id=user_id)
-```
-
-To bound context:
-
-```python
-log = logger.bind(request_id=request_id, user_id=user_id)
-log.info("step_one")
-log.info("step_two")
-```
+- [Python logging API](https://docs.python.org/3/library/logging.html)
+- [Python logging cookbook](https://docs.python.org/3/howto/logging-cookbook.html)
+- [structlog context variables](https://www.structlog.org/en/stable/contextvars.html)
