@@ -98,6 +98,16 @@ Behavioral agent evaluation is separate: see [evals/README.md](evals/README.md) 
 
 Keep changes scoped and update examples or eval cases when the recommended behavior changes.
 
+## Generated demo project
+
+Try the skill on a disposable FastAPI order API with stdlib or structlog logging. The application starts with intentional logging defects; an external checker measures HTTP behavior, rendered logs, exception ownership, secret handling, and request context before and after the agent's changes.
+
+```sh
+python3 scripts/demo.py create --stack stdlib --dest /tmp/logging-demo-stdlib
+```
+
+See the [demo guide](evals/demo/README.md) for environment setup, evaluation commands, and skill/no-skill trials. Run `just demo-test` to test the generator and evaluator; these tests are separate from `just check` and run in their own CI matrix.
+
 ## License
 
 This project is licensed under the terms in [LICENSE](LICENSE).

@@ -2,6 +2,8 @@
 
 These cases evaluate agent decisions separately from deterministic repository checks. They have not been benchmarked yet. `cases.json` contains prompts, input files, expected implicit activation, and outcome criteria. Keep cases and results outside the installed skill so the agent does not see the grading answers.
 
+For a complete generated HTTP application with before/after checks, see the [FastAPI demo](demo/README.md).
+
 ## Run a case
 
 1. Create a fresh temporary project and copy only the listed fixtures into it, keeping their basenames. Install any fixture dependencies in an isolated environment. Record initial file checksums.
