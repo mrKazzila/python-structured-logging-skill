@@ -12,3 +12,8 @@ test:
 [doc('Run all deterministic checks')]
 check: validate test
     @python3 scripts/check_release_state.py
+
+[group('Quality')]
+[doc('Test both generated FastAPI demo variants and the external evaluator')]
+demo-test:
+    @uv run --with-requirements evals/demo/requirements-structlog.txt python -m unittest discover -s tests/demo -v
