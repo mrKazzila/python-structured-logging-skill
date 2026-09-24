@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "python-structured-logging": {
+      "source": "mrKazzila/python-structured-logging-skill",
+      "sourceType": "github",
+      "skillPath": "plugins/python-structured-logging/skills/python-structured-logging/SKILL.md",
+      "computedHash": "afa4c67a1da5167d6316a82991e480c15a7bcd6006126e3858bdf0d58e3c220e"
+    }
+  }
+}

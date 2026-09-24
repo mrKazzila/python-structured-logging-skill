@@ -1,0 +1,4 @@
+interface:
+  display_name: "Python Structured Logging"
+  short_description: "Practical guidance for safer, more useful Python logs"
+  default_prompt: "Use $python-structured-logging to inspect the current Python logging stack, tighten event names and fields, and improve exception logging without forcing an unnecessary migration."
