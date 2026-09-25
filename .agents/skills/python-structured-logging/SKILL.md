@@ -1,147 +1,49 @@
 ---
 name: python-structured-logging
-description: Use when reviewing or changing Python logging behavior, including structlog, stdlib logging, event naming, structured fields, bound context, exception logging, correlation IDs, or sensitive-data-safe observability.
+description: Review or improve Python logging with structlog, stdlib logging, or existing wrappers. Use for logging changes, not unrelated Python refactoring.
 ---
 
 # Python Structured Logging
 
-## Core Rule
+Make logs useful operational events while preserving the user's scope and project contracts.
 
-Logs are operational events, not developer diary entries.
+## Scope and contracts
 
-## Workflow
+- Review requests need findings with locations and concrete effects, not edits.
+- Inspect the logger API, formatter/processors, event conventions, and failure ownership. Keep the stack and wrappers; migration requires authorization.
+- Preserve business behavior, signatures, exception propagation, and retry decisions.
+- Event names and fields may feed alerts, dashboards, and queries. Preserve existing contracts, including dotted names. Before an authorized rename, inspect available consumers and explain their updates; report external consumers you cannot verify.
+- With no existing convention, use stable `snake_case` events such as `invoice_processed` and put variable values in fields. Follow existing field names; give new units explicit keys such as `duration_ms`.
+- Replace diagnostic prints only in scope; preserve intentional CLI output.
 
-1. Inspect the current stack first: `structlog`, stdlib `logging`, or a project wrapper.
-2. Preserve the current direction unless it is harmful or migration was explicitly requested.
-3. If the project uses stdlib `logging` intentionally, improve message shape and `extra` fields instead of forcing `structlog`.
-4. Replace prose or dynamic event names with stable `snake_case` events.
-5. Move variable data into structured fields and bind shared context once near the request or job boundary.
-6. Keep one meaningful exception log at the layer that owns the failure, with a traceback when needed.
-7. Remove or redact sensitive data before it reaches bound context or payload fields.
-8. Verify output shape, levels, and noise after the change.
+## API and selective reading
 
-## Event Naming
+Read the matching example pair for substantial refactoring, integration setup, or API uncertainty. Simple field additions and local reviews do not require examples.
 
-- Use stable `snake_case` event names.
-- Prefer action or action-plus-result names such as `invoice_processed` or `broker_publish_failed`.
-- Do not put IDs, emails, statuses, or exception text into the event name.
-- Do not use generic events such as `error`, `failed`, or `something_went_wrong` without the operation name.
+- **structlog:** keyword fields and a locally bound logger; [good](examples/structlog/good.py), [bad](examples/structlog/bad.py).
+- **stdlib:** `extra` or existing adapters; no arbitrary keyword fields or `.bind()`. Avoid reserved LogRecord keys. The formatter must emit added attributes; [good](examples/stdlib/good.py), [bad](examples/stdlib/bad.py).
+- **Wrappers:** inspect their interface and output before adapting either pattern.
 
-Good:
+Read only the relevant reference when:
 
-```python
-logger.info("invoice_processed", invoice_id=invoice_id, duration_ms=duration_ms)
-logger.warning("retry_scheduled", attempt=attempt, delay_seconds=delay_seconds)
-```
+- Changing formatters/processors, diagnosing missing fields, serialization, or duplicate handlers: [output pipeline](references/output-pipeline.md).
+- Working with cross-module or concurrent context or cleanup: [context lifecycle](references/context-lifecycle.md).
+- Resolving failure ownership or sanitizing exception output: [exceptions and sensitive data](references/exceptions-and-sensitive-data.md).
 
-Bad:
+## Context, exceptions, and noise
 
-```python
-logger.info(f"invoice {invoice_id} processed in {duration_ms} ms")
-logger.error(f"publish failed for order {order_id}")
-logger.info(f"user_{user_id}_updated")
-```
+- Bind/inject shared context at request/job boundaries where supported; repeating `extra` is acceptable. A local `.bind()` does not enrich independent loggers. Clean up scoped context on success and failure without leaking between operations.
+- Allowlist needed payload fields before binding. Never log credentials, tokens, authorization headers, or raw sensitive payloads. Identifiers and payment-derived fields still require the project's data policy; masking is not blanket permission.
+- Log a failure once at the layer owning its operational outcome. Lower layers may propagate without logging. Use `logger.exception(...)` inside `except` when a traceback is appropriate; preserve control flow and derive retryability from the real policy.
+- Exception messages and tracebacks can expose secrets despite safe fields. Inspect rendered output and use the existing sanitization path.
+- Follow project levels: `INFO` for outcomes, `DEBUG` for optional diagnostics, `WARNING` for actionable degradation, `ERROR` for failed operations needing attention. Avoid per-item noise and redundant boundaries; retain useful progress for stalled or long-running work.
 
-## Fields and Context
+## Verify
 
-- Use stable field names such as `request_id`, `correlation_id`, `job_id`, `user_id`, `entity_id`, `status`, and `duration_ms` when they are relevant.
-- Bind shared context once when possible instead of passing the same fields manually everywhere.
-- Keep units in the key name: `duration_ms`, `delay_seconds`, `size_bytes`.
-- Avoid renaming the same concept across modules.
-- Prefer allowlisted payload fragments such as `{"amount_cents": ..., "card_last4": ...}` over raw payload logging.
+Use focused tests/output capture proportional to the change, through the complete configured runtime output boundary (see [output pipeline](references/output-pipeline.md)):
 
-Good:
+- Contracts and application behavior preserved; fields survive formatting without API errors.
+- One appropriate failure record, with traceback when needed; no sensitive values in fields, messages, or rendered exceptions.
+- Request/job context isolated and cleaned up.
 
-```python
-log = logger.bind(request_id=request_id, job_id=job_id)
-log.info("job_started", task_name=task_name)
-```
-
-Bad:
-
-```python
-logger.info("job started", extra={"req": request_id, "job": job_id})
-logger.info("job_started", request_id=request_id, job_id=job_id)
-logger.info("job_finished", request_id=request_id, job_id=job_id)
-```
-
-## Exception Logging
-
-- Use `logger.exception(...)` inside `except` when you need the traceback.
-- Use `exc_info=True` only when the logger API requires it.
-- Do not log and swallow unless that behavior is intentional and the caller does not need the failure.
-- Do not duplicate the same exception log at every layer.
-- Do not use `logger.error(str(exc))` as the only exception log for unexpected failures.
-
-Good:
-
-```python
-try:
-    send_invoice(invoice)
-except ProviderTimeoutError:
-    logger.exception("invoice_send_failed", invoice_id=invoice.id, retryable=True)
-    raise
-```
-
-Bad:
-
-```python
-try:
-    send_invoice(invoice)
-except Exception as exc:
-    logger.error(f"invoice failed: {exc}")
-```
-
-## Sensitive Data
-
-- Never log passwords, tokens, API keys, cookies, authorization headers, private keys, or raw secrets.
-- Never log raw request bodies, raw response bodies, session data, personal data, or payment data unless the user explicitly asks for a safe, scoped format.
-- Prefer allowlisted fields over blocklists when logging payload-derived data.
-- Redact at boundaries before binding context.
-
-Good:
-
-```python
-safe_payment = {
-    "card_last4": payment.card_last4,
-    "amount_cents": payment.amount_cents,
-}
-logger.info("payment_authorized", payment=safe_payment)
-```
-
-Bad:
-
-```python
-logger.info("payment_authorized", payload=payment_payload, auth_header=auth_header)
-```
-
-## Noise Control
-
-- `INFO` for business or operational events that matter.
-- `DEBUG` for local diagnostics that can be turned off safely.
-- `WARNING` for degraded but handled situations such as retries or fallbacks.
-- `ERROR` for failed operations that need attention.
-- Avoid logs inside tight loops unless they are sampled or aggregated.
-- Remove `started` and `finished` chatter unless the boundary is operationally meaningful.
-- Prefer one outcome log over multiple step-by-step logs when the extra detail does not change operator action.
-
-## Bundled Resources
-
-- [`examples/structlog/good.py`](examples/structlog/good.py)
-- [`examples/structlog/bad.py`](examples/structlog/bad.py)
-- [`examples/stdlib/good.py`](examples/stdlib/good.py)
-- [`examples/stdlib/bad.py`](examples/stdlib/bad.py)
-- [`references/Python Logging Style Guide.md`](references/Python Logging Style Guide.md)
-
-- Read the examples that match the stack already in use.
-- Read the reference guide when you need human-oriented rationale, level guidance, or migration examples.
-
-## Verification Checklist
-
-- Current logging style is preserved or intentionally migrated.
-- Event names are stable and `snake_case`.
-- Variable data is in fields, not prose strings.
-- Shared context is bound or injected once where the stack supports it.
-- Exceptions include stack traces where needed.
-- Sensitive data is redacted or omitted.
-- Output still fits the project's log pipeline.
+Report checks performed and unverified pipeline assumptions.

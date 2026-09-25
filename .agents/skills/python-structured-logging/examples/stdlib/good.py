@@ -1,6 +1,5 @@
 import logging
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -15,36 +14,18 @@ def process_invoice(
     attempt: int,
     amount_cents: int,
 ) -> None:
-    shared_context = {
+    # This operation owns the failure record; callers propagate without logging.
+    context = {
         "request_id": request_id,
         "invoice_id": invoice_id,
         "customer_id": customer_id,
         "attempt": attempt,
     }
-    safe_payment = {
-        "amount_cents": amount_cents,
-        "card_last4": "4242",
-    }
-
     try:
         if amount_cents < 0:
             raise PaymentGatewayError("negative amount")
 
-        logger.info(
-            "invoice_processed",
-            extra={
-                **shared_context,
-                "status": "success",
-                "payment": safe_payment,
-            },
-        )
+        logger.info("invoice_processed", extra={**context, "amount_cents": amount_cents})
     except PaymentGatewayError:
-        logger.exception(
-            "invoice_processing_failed",
-            extra={
-                **shared_context,
-                "retryable": True,
-                "payment": safe_payment,
-            },
-        )
+        logger.exception("invoice_processing_failed", extra={**context, "retryable": False})
         raise

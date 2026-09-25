@@ -1,7 +1,10 @@
 import structlog
 
-
 logger = structlog.get_logger(__name__)
+
+
+class PaymentGatewayError(RuntimeError):
+    pass
 
 
 def process_invoice(
@@ -9,18 +12,13 @@ def process_invoice(
     customer_id: str,
     request_id: str,
     attempt: int,
-    payment_payload: dict,
+    amount_cents: int,
 ) -> None:
     try:
-        logger.info(
-            f"starting invoice processing for invoice={invoice_id}, customer={customer_id}, request={request_id}"
-        )
-        logger.info(
-            f"invoice_{invoice_id}_processed",
-            payload=payment_payload,
-            attempt=attempt,
-            authorization_header="Bearer secret-token",
-        )
-    except Exception as exc:
+        if amount_cents < 0:
+            raise PaymentGatewayError("negative amount")
+
+        logger.info(f"invoice_{invoice_id}_processed for customer {customer_id} request={request_id} attempt={attempt}")
+    except PaymentGatewayError as exc:
         logger.error(f"invoice processing failed for {invoice_id}: {exc}")
         raise
