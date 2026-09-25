@@ -13,7 +13,7 @@ python3 -m venv .venv
 .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-On Windows use `.venv\Scripts\python.exe`. The server is optional: contract and external evaluation tests use an in-process ASGI transport. Interactive API documentation is at `http://127.0.0.1:8000/docs`.
+On Windows use `.venv\Scripts\python.exe`. Starting the server manually is optional: the external evaluator starts its own temporary loopback Uvicorn server as well as using an in-process ASGI transport. Interactive API documentation is at `http://127.0.0.1:8000/docs`.
 
 ## Existing contracts
 

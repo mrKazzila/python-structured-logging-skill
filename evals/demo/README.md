@@ -23,7 +23,7 @@ python3 scripts/demo.py check --project /tmp/logging-demo-stdlib --report /tmp/s
 
 Repeat with `--stack structlog` and a different project/report path. The initial check is expected to exit 1: the HTTP contract works, but logging defects are present. An improved project should exit 0. Exit 2 means a setup/probe error, not a failed logging criterion. Reports are created exclusively and are never overwritten; choose a new filename for each run. Setup errors are recorded with `passed: null` when a report can be created.
 
-`check` executes the generated application's code in a subprocess using its `.venv`, with a 60-second timeout. It does not install dependencies or edit application files. This is process isolation, not an operating-system security sandbox. Both output streams are captured, and only synthetic credentials are used.
+`check` executes the generated application's code using its `.venv`: the original ASGI probe has a 60-second timeout, and two fresh runtime subprocesses each have a 45-second timeout. It does not install dependencies or edit application files. This is process isolation, not an operating-system security sandbox. Both output streams are captured, and only synthetic credentials are used. The server probe requires permission to bind a loopback socket; a blocked socket is a setup error, never a passing result.
 
 ## What is measured
 
@@ -36,6 +36,14 @@ The report includes dependency/Python versions, HTTP observations, rendered logs
 - No synthetic secrets anywhere in stdout or stderr, including exception rendering.
 - Correct correlation for overlapping requests and cleanup after successful, invalid, and failed requests.
 - Runtime use of the selected logging backend. This probe observes Python logging/structlog emission calls; it is not a general proof against adversarial code or dependency migration.
+- Whole-process stdout/stderr from real Uvicorn startup, an unexpected HTTP failure, access logging, and shutdown: strict JSON `event`/`level` records and no exception/query sentinels.
+- One failure owner across application and server output, including Uvicorn's raw exception fallback.
+- Safe public-facade exception logging with a NaN structured field while stdlib diagnostic fallback is enabled; recovery logging must still work.
+- HTTP 500 response correlation with application completion logs. Requiring a header on 500 follows this fixture's **each response** contract; it is not a universal framework rule.
+
+The real-server probe uses the documented Uvicorn import/configuration order, an OS-assigned loopback port, an explicit readiness event, and graceful shutdown. It adds an unexpected-failure route through FastAPI's public routing API (unwrapping outer ASGI `.app` wrappers where needed). It neither installs a sanitizing handler nor changes exception ownership in the application under evaluation. Separate metadata files keep actual process output, including direct file-descriptor writes, inside the grading boundary.
+
+See [runtime regression evidence and evaluator review](runtime-regressions.md) for the original worker's **11/11 → 11/15**, source mutation tests, positive controls, assumptions, and remaining gaps.
 
 Probe events are emitted outside the request in the same coroutine, so task teardown cannot mask missing cleanup. Concurrency is deterministic: the provider yields control without using timing delays or external services.
 
