@@ -3,6 +3,67 @@
 import json
 
 
+def rendered(observation):
+    """Strict JSON, including RFC-invalid NaN/Infinity, across both streams."""
+    records, malformed = [], []
+
+    def invalid_constant(value):
+        raise ValueError(value)
+
+    for stream in ('stdout', 'stderr'):
+        for line in observation[stream].splitlines():
+            if not line.strip():
+                continue
+            try:
+                record = json.loads(line, parse_constant=invalid_constant)
+                if (not isinstance(record, dict) or not isinstance(record.get('event'), str)
+                        or not isinstance(record.get('level'), str)):
+                    raise ValueError('expected JSON event and level')
+                records.append(record)
+            except (ValueError, TypeError):
+                malformed.append(line)
+    return records, malformed
+
+
+def runtime_criteria(runtime):
+    """Independent evidence for server safety, ownership, fallback and correlation."""
+    server, formatter = runtime['server'], runtime['formatter']
+    records, malformed = rendered(server)
+    raw = server['stdout'] + server['stderr']
+    leaks = [secret for secret in server['secrets'] if secret in raw]
+    errors = [r for r in records if r['level'].lower() in ('error', 'critical')]
+    # Count raw Uvicorn exception reports too, rather than overlooking ownership
+    # simply because the duplicate failed the JSON contract already.
+    raw_errors = [line for line in malformed if 'Exception in ASGI application' in line]
+    error_count = len(errors) + len(raw_errors)
+    correlated = [r for r in records if r.get('request_id') == server['expected_request_id']]
+    fmt_records, fmt_malformed = rendered(formatter)
+    fmt_raw = formatter['stdout'] + formatter['stderr']
+    unsafe = [marker for marker in [*formatter['secrets'], '--- Logging error ---',
+                                   'FORMATTER_SOURCE_SENTINEL'] if marker in fmt_raw]
+    return [
+        {'id': 'whole_process_output',
+         'passed': bool(records) and not malformed and not leaks,
+         'evidence': {'records': len(records), 'malformed_lines': malformed, 'leaked_markers': leaks}},
+        {'id': 'unexpected_failure_ownership',
+         'passed': error_count == 1,
+         'evidence': {'error_records': len(errors), 'raw_server_errors': len(raw_errors)}},
+        {'id': 'formatter_fallback_safety',
+         'passed': formatter['raised'] is None and not unsafe and not fmt_malformed and
+                   any(r['event'] == 'demo.serialization_recovery' for r in fmt_records),
+         'evidence': {'raised': formatter['raised'], 'unsafe_markers': unsafe,
+                      'malformed_lines': fmt_malformed, 'records': len(fmt_records)}},
+        {'id': 'unexpected_500_correlation',
+         'passed': server['status'] == 500 and
+                   server['request_id'] == server['expected_request_id'] and bool(correlated) and
+                   any(r['event'] == 'request.completed' and r.get('status_code') == 500
+                       for r in correlated),
+         'evidence': {'status': server['status'], 'response_request_id': server['request_id'],
+                      'expected_request_id': server['expected_request_id'],
+                      'correlated_events': [r['event'] for r in correlated]}},
+    ]
+
+
 def grade(observations, stack):
     criteria = []
 
@@ -101,4 +162,5 @@ def grade(observations, stack):
     usage = observations['backend_calls']
     preserved = usage[stack] > 0 and (stack != 'stdlib' or usage['structlog'] == 0)
     result('original_stack', preserved, usage)
+    criteria.extend(runtime_criteria(observations['runtime']))
     return criteria

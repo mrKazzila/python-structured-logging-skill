@@ -22,13 +22,16 @@ STACKS = [os.environ['DEMO_TEST_STACK']] if os.environ.get('DEMO_TEST_STACK') el
 def repair(project, stack):
     reference = demo.DEMO / 'reference'
     shutil.copyfile(reference / f'{stack}.py', project / 'app/observability.py')
-    for filename in ('service.py', 'safe_output.py'):
+    for filename in ('service.py', 'safe_output.py', 'runtime_boundary.py'):
         shutil.copyfile(reference / filename, project / 'app' / filename)
     middleware = project / 'app/middleware.py'
     middleware.write_text(middleware.read_text().replace(
         "log.info('request.received', authorization=headers.get(b'authorization', b'').decode())",
         "log.info('request.received')",
     ))
+    main = project / 'app/main.py'
+    main.write_text(main.read_text() +
+                    '\nfrom .runtime_boundary import RuntimeBoundary\napp = RuntimeBoundary(app)\n')
 
 
 class DemoTests(unittest.TestCase):
@@ -49,7 +52,9 @@ class DemoTests(unittest.TestCase):
 
     def test_originals_have_working_api_and_reproducible_logging_defects(self):
         expected_failures = {'stable_events', 'structured_fields', 'single_failure_traceback',
-                             'no_secrets', 'request_isolation', 'context_cleanup'}
+                             'no_secrets', 'request_isolation', 'context_cleanup',
+                             'whole_process_output',
+                             'formatter_fallback_safety', 'unexpected_500_correlation'}
         for stack in STACKS:
             with self.subTest(stack=stack):
                 project = self.project(stack)
@@ -72,6 +77,96 @@ class DemoTests(unittest.TestCase):
                 report = demo.check(self.project(stack, fixed=True))
                 self.assertTrue(report['passed'], report['criteria'])
                 self.assertTrue(report['versions']['fastapi'])
+
+    def reviewed_worker(self):
+        project = self.project('stdlib')
+        for source in (demo.DEMO / 'regressions/reviewed_worker').glob('*.py'):
+            shutil.copyfile(source, project / 'app' / source.name)
+        return project
+
+    def reviewed_report(self):
+        report = demo.check(self.reviewed_worker())
+        self.assertEqual(len(report['criteria']), 15)
+        self.assertTrue(all(c['passed'] for c in report['criteria'][:11]))
+        self.assertFalse(report['passed'])
+        return report
+
+    def test_reviewed_worker_whole_process_output(self):
+        report = self.reviewed_report()
+        check = next(c for c in report['criteria'] if c['id'] == 'whole_process_output')
+        self.assertFalse(check['passed'])
+        self.assertEqual(len(check['evidence']['leaked_markers']), 2)
+
+    def test_reviewed_worker_duplicate_failure_ownership(self):
+        report = self.reviewed_report()
+        check = next(c for c in report['criteria'] if c['id'] == 'unexpected_failure_ownership')
+        self.assertFalse(check['passed'])
+        self.assertEqual(check['evidence'], {'error_records': 1, 'raw_server_errors': 1})
+
+    def test_reviewed_worker_formatter_fallback(self):
+        report = self.reviewed_report()
+        check = next(c for c in report['criteria'] if c['id'] == 'formatter_fallback_safety')
+        self.assertFalse(check['passed'])
+        self.assertIn('--- Logging error ---', check['evidence']['unsafe_markers'])
+        self.assertIn('FORMATTER_SOURCE_SENTINEL', check['evidence']['unsafe_markers'])
+        self.assertTrue(any('TEST_SECRET_FORMATTER_' in s for s in check['evidence']['unsafe_markers']))
+
+    def test_reviewed_worker_unexpected_500_correlation(self):
+        report = self.reviewed_report()
+        check = next(c for c in report['criteria'] if c['id'] == 'unexpected_500_correlation')
+        self.assertFalse(check['passed'])
+        self.assertEqual(check['evidence']['status'], 500)
+        self.assertIsNone(check['evidence']['response_request_id'])
+        self.assertIn('request.completed', check['evidence']['correlated_events'])
+
+    def test_minimal_reviewed_worker_repairs_pass(self):
+        project = self.reviewed_worker()
+        for filename in ('safe_output.py', 'runtime_boundary.py'):
+            shutil.copyfile(demo.DEMO / 'reference' / filename, project / 'app' / filename)
+        backend = project / 'app/observability.py'
+        backend.write_text(backend.read_text().replace(
+            'import json', 'import json\nimport math\nfrom .safe_output import configure_server',
+        ).replace('def _safe(value):',
+                  'def _safe(value):\n    if isinstance(value, float) and not math.isfinite(value):\n        return None'
+        ).replace('def configure():', 'def configure():\n    configure_server()'))
+        middleware = project / 'app/middleware.py'
+        middleware.write_text(middleware.read_text().replace(
+            "log.exception('request.failed', status_code=status)", 'pass  # Outer boundary owns failure'))
+        main = project / 'app/main.py'
+        main.write_text(main.read_text() +
+                        '\nfrom .runtime_boundary import RuntimeBoundary\napp = RuntimeBoundary(app)\n')
+        report = demo.check(project)
+        self.assertTrue(report['passed'], report['criteria'])
+
+    def test_independent_runtime_source_regressions(self):
+        mutations = {
+            'whole_process_output': ('observability.py', '    configure_server()', '    pass'),
+            'unexpected_failure_ownership': (
+                'runtime_boundary.py', "log.exception('request.failed', request_id=request_id)",
+                "log.exception('request.failed', request_id=request_id)\n"
+                "            log.exception('duplicate.failure', request_id=request_id)"),
+            'formatter_fallback_safety': ('safe_output.py',
+                'if isinstance(value, float) and not math.isfinite(value):',
+                'if False:'),
+            'unexpected_500_correlation': ('runtime_boundary.py',
+                "message = {**message, 'headers': [*headers, (b'x-request-id', request_id.encode())]}",
+                'message = message'),
+        }
+        for stack in STACKS:
+            for criterion, (filename, before, after) in mutations.items():
+                with self.subTest(stack=stack, criterion=criterion):
+                    with tempfile.TemporaryDirectory(dir=self.root) as temporary:
+                        project = Path(temporary) / 'project'
+                        with contextlib.redirect_stdout(io.StringIO()):
+                            demo.create(stack, project)
+                        (project / '.venv').symlink_to(Path(sys.prefix), target_is_directory=True)
+                        repair(project, stack)
+                        target = project / 'app' / filename
+                        self.assertIn(before, target.read_text())
+                        target.write_text(target.read_text().replace(before, after))
+                        report = demo.check(project)
+                        self.assertEqual([c['id'] for c in report['criteria'] if not c['passed']],
+                                         [criterion], report['criteria'])
 
     def test_each_regression_is_detected_in_rendered_observations(self):
         spec = importlib.util.spec_from_file_location('grading_test', demo.DEMO / 'grading.py')

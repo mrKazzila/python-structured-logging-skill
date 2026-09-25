@@ -3,7 +3,7 @@ from contextvars import ContextVar
 
 import structlog
 
-from .safe_output import sanitize
+from .safe_output import configure_server, sanitize
 
 _context = ContextVar('request_context', default={})
 logger = structlog.get_logger('orders')
@@ -14,6 +14,7 @@ def safe_fields(logger, method, event):
 
 
 def configure():
+    configure_server()
     structlog.configure(
         processors=[structlog.processors.add_log_level, structlog.processors.format_exc_info,
                     safe_fields, structlog.processors.JSONRenderer()],

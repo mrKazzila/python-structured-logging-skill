@@ -61,6 +61,22 @@ def check(project: Path) -> dict:
     grading = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(grading)
     observed = payload['observations']
+    observed['runtime'] = {}
+    with tempfile.TemporaryDirectory(prefix='logging-runtime-') as temporary:
+        for mode in ('server', 'formatter'):
+            metadata = Path(temporary) / f'{mode}.json'
+            runtime = subprocess.run(
+                [str(python), '-I', '-B', str(DEMO / 'runtime_probe.py'),
+                 str(project), mode, str(metadata)],
+                cwd=project, env=environment, capture_output=True, text=True, timeout=45,
+            )
+            if runtime.returncode or not metadata.is_file():
+                raise ValueError(f'{mode} runtime probe failed (exit {runtime.returncode}): '
+                                 f'{runtime.stderr[-4000:]}')
+            observed['runtime'][mode] = {
+                **json.loads(metadata.read_text(encoding='utf-8')),
+                'stdout': runtime.stdout, 'stderr': runtime.stderr,
+            }
     criteria = grading.grade(observed, stack)
     return {'schema_version': 1, 'project': str(project), 'stack': stack,
             'checked_at': datetime.now(timezone.utc).isoformat(), 'versions': observed['versions'],

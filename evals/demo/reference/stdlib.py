@@ -3,7 +3,7 @@ import logging
 import sys
 from contextvars import ContextVar
 
-from .safe_output import sanitize
+from .safe_output import configure_server, sanitize
 
 _context = ContextVar('request_context', default={})
 logger = logging.getLogger('orders')
@@ -18,6 +18,7 @@ class JsonFormatter(logging.Formatter):
 
 
 def configure():
+    configure_server()
     handler = logging.StreamHandler(sys.stderr)
     handler.setFormatter(JsonFormatter())
     logger.handlers = [handler]
