@@ -20,6 +20,23 @@ class ValidationTests(unittest.TestCase):
     def test_repository_is_valid(self):
         self.assertEqual(validate(self.root), [])
 
+    def test_local_copy_drift_is_rejected(self):
+        local = self.root / '.agents/skills/python-structured-logging'
+        (local / 'SKILL.md').write_text('outdated')
+        self.assertTrue(any('Skill copies differ' in e for e in validate(self.root)))
+
+    def test_extra_local_resource_is_rejected(self):
+        local = self.root / '.agents/skills/python-structured-logging'
+        (local / 'unexpected.md').write_text('stale resource')
+        self.assertTrue(any('Skill copies differ' in e for e in validate(self.root)))
+
+    def test_generated_files_do_not_count_as_drift(self):
+        local = self.root / '.agents/skills/python-structured-logging'
+        (local / '__pycache__').mkdir(exist_ok=True)
+        (local / '__pycache__/example.pyc').write_bytes(b'cache')
+        (local / '.DS_Store').write_bytes(b'editor')
+        self.assertEqual(validate(self.root), [])
+
     def test_malformed_yaml_is_rejected(self):
         (self.root / SKILL / 'SKILL.md').write_text('---\nname: [\ndescription: broken\n---\n')
         self.assertTrue(validate(self.root))

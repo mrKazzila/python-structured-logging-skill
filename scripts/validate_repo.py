@@ -16,8 +16,25 @@ PLUGIN = Path("plugins") / SKILL_NAME
 SKILL = PLUGIN / "skills" / SKILL_NAME
 
 
+def resource_files(directory: Path) -> dict[str, bytes]:
+    """Compare distributed resources, excluding generated/editor files."""
+    return {
+        path.relative_to(directory).as_posix(): path.read_bytes()
+        for path in directory.rglob('*')
+        if path.is_file()
+        and not any(part.startswith('.') or part == '__pycache__'
+                    for part in path.relative_to(directory).parts)
+        and path.suffix not in ('.pyc', '.pyo')
+        and not path.name.endswith('~')
+    }
+
+
 def validate(root: Path = ROOT) -> list[str]:
     errors: list[str] = []
+    packaged = resource_files(root / SKILL)
+    local = resource_files(root / '.agents/skills' / SKILL_NAME)
+    if not packaged or packaged != local:
+        errors.append('Skill copies differ: synchronize .agents/skills from plugins (contents and resource list)')
 
     def mapping(path: Path, loader) -> dict:
         try:
