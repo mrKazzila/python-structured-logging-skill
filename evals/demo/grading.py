@@ -41,6 +41,21 @@ def runtime_criteria(runtime):
     fmt_raw = formatter['stdout'] + formatter['stderr']
     unsafe = [marker for marker in [*formatter['secrets'], '--- Logging error ---',
                                    'FORMATTER_SOURCE_SENTINEL'] if marker in fmt_raw]
+    cases = []
+    for case in formatter['cases']:
+        emitted, bad_emission = rendered(case['emission'])
+        recovered, bad_recovery = rendered(case['recovery'])
+        case_raw = ''.join(case[stage][stream] for stage in ('emission', 'recovery')
+                           for stream in ('stdout', 'stderr'))
+        cases.append({'case': case['case'], 'raised': case['raised'],
+                      'recovery_raised': case['recovery_raised'],
+                      'emitted_records': len(emitted),
+                      'recovered': any(r['event'] == 'demo.serialization_recovery' for r in recovered),
+                      'unsafe_markers': [marker for marker in unsafe if marker in case_raw],
+                      'malformed_lines': bad_emission + bad_recovery})
+    complete_cases = {c['case'] for c in cases} == {
+        'ordinary_object', 'hostile_mapping_key', 'cycle', 'nan',
+        'positive_infinity', 'negative_infinity'} and len(cases) == 6
     return [
         {'id': 'whole_process_output',
          'passed': bool(records) and not malformed and not leaks,
@@ -49,9 +64,10 @@ def runtime_criteria(runtime):
          'passed': error_count == 1,
          'evidence': {'error_records': len(errors), 'raw_server_errors': len(raw_errors)}},
         {'id': 'formatter_fallback_safety',
-         'passed': formatter['raised'] is None and not unsafe and not fmt_malformed and
-                   any(r['event'] == 'demo.serialization_recovery' for r in fmt_records),
-         'evidence': {'raised': formatter['raised'], 'unsafe_markers': unsafe,
+         'passed': complete_cases and not unsafe and not fmt_malformed and all(
+             c['raised'] is None and c['recovery_raised'] is None and c['emitted_records'] > 0
+             and c['recovered'] and not c['malformed_lines'] for c in cases),
+         'evidence': {'cases': cases, 'unsafe_markers': unsafe,
                       'malformed_lines': fmt_malformed, 'records': len(fmt_records)}},
         {'id': 'unexpected_500_correlation',
          'passed': server['status'] == 500 and

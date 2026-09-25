@@ -5,17 +5,29 @@ import math
 import sys
 
 
-def sanitize(value):
-    """Demo redaction after exception rendering; not a general secret detector."""
-    if isinstance(value, dict):
-        return {key: sanitize(item) for key, item in value.items()}
-    if isinstance(value, list):
-        return [sanitize(item) for item in value]
+def sanitize(value, active=None):
+    """Bounded demo normalization/redaction; not a general secret detector."""
+    if active is None:
+        active = set()
+    if isinstance(value, (dict, list, tuple)):
+        if id(value) in active or len(active) >= 32:
+            return '[unsupported value]'
+        active.add(id(value))
+        try:
+            if isinstance(value, dict):
+                # Omit unsupported keys without invoking user str/repr methods.
+                return {key: sanitize(item, active) for key, item in value.items()
+                        if isinstance(key, str)}
+            return [sanitize(item, active) for item in value]
+        finally:
+            active.remove(id(value))
     if isinstance(value, str):
         return re.sub(r'TEST_SECRET_[A-Z0-9_]+', '[REDACTED]', value)
     if isinstance(value, float) and not math.isfinite(value):
         return None
-    return value
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    return '[unsupported value]'
 
 
 class ServerFormatter(logging.Formatter):

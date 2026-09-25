@@ -10,7 +10,7 @@ All four checks run from `scripts/demo.py check`; implementation is in
 | --- | --- | --- |
 | `whole_process_output` / `test_reviewed_worker_whole_process_output` | Both actual process streams, including Uvicorn startup/error/access/shutdown, contain only JSON event/level objects and neither unique exception nor query secret. | ASGITransport never exercised Uvicorn handlers or access logging. |
 | `unexpected_failure_ownership` / `test_reviewed_worker_duplicate_failure_ownership` | One error/critical event across application and server; raw Uvicorn exception reports also count. | Only handled provider failures and application output were checked. |
-| `formatter_fallback_safety` / `test_reviewed_worker_formatter_fallback` | Public `log.exception` with NaN during an active secret-bearing exception neither raises nor produces raw diagnostics, secret, local sentinel, source marker, or invalid JSON. A following public info call still renders. | Normal structured fields did not make the JSON encoder fail; logging.handleError was never exercised. |
+| `formatter_fallback_safety` / `test_reviewed_worker_formatter_fallback` | Public `log.exception` with an ordinary object, hostile non-string mapping key, cycle, NaN, +Infinity and -Infinity during an active secret-bearing exception neither raises nor produces raw diagnostics, secret, local sentinel, source marker, or invalid JSON. Every attempt emits a safe structured record or fallback, and a following public info call still renders. | Normal structured fields did not make the JSON encoder fail; the original NaN-only probe missed unsupported-key, object and cycle failures. |
 | `unexpected_500_correlation` / `test_reviewed_worker_unexpected_500_correlation` | Actual HTTP 500 carries the supplied request ID, matching application `request.completed` with status 500. | Handled 503 and validation 422 did not exercise the outer framework error middleware. |
 
 The fixture already promises JSON logs, no credentials in rendered exceptions,
@@ -84,9 +84,11 @@ criterion fails**. Thus the four checks are not aliases for one broad failure.
   arbitrary-object stringification, or access-event name is prescribed. Safe
   disabling of access logs is allowed. Server lifecycle prose is rejected because
   this fixture promises JSON output throughout the process.
-- **False negatives:** finite normalization or a safe fallback/drop may pass;
-  formatter safety does not promise delivery of the failed event, but recovery
-  logging must work. Error ownership recognizes JSON error/critical levels and
+- **False negatives:** safe normalization, field omission or a structured fallback
+  may pass; silent dropping of an entire attempted event fails. Each synchronous
+  call has descriptor-level stdout/stderr evidence, replayed into the complete
+  process streams. Queued/asynchronous delivery is outside this fixture's current
+  synchronous facade contract. Error ownership recognizes JSON error/critical levels and
   pinned Uvicorn's raw ASGI-error banner. Adversarial relabeling/dropping, alternate
   encodings of secrets, unrelated sink files, and custom background processes are
   outside this check. Unique per-run secrets prevent fixed-string redaction from

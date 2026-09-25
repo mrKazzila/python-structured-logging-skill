@@ -7,9 +7,41 @@ logging diagnostics (including writes to file descriptors) cannot escape grading
 import asyncio
 import json
 import logging
+import os
 import sys
+import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 from uuid import uuid4
+
+
+@contextmanager
+def capture_streams():
+    """Attribute synchronous emissions, including raw fd writes, to one call.
+
+    Replay captured bytes to the original descriptors so the complete process
+    streams remain authoritative too. No candidate logger internals are used.
+    """
+    observed = {}
+    sys.stdout.flush()
+    sys.stderr.flush()
+    with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
+        saved = [os.dup(1), os.dup(2)]
+        try:
+            os.dup2(stdout.fileno(), 1)
+            os.dup2(stderr.fileno(), 2)
+            yield observed
+        finally:
+            sys.stdout.flush()
+            sys.stderr.flush()
+            for fd, original, stream, name in zip((1, 2), saved, (stdout, stderr), ('stdout', 'stderr')):
+                os.dup2(original, fd)
+                os.close(original)
+                stream.seek(0)
+                raw = stream.read()
+                observed[name] = raw.decode('utf-8', errors='replace')
+                while raw:
+                    raw = raw[os.write(fd, raw):]
 
 
 def formatter():
@@ -19,16 +51,37 @@ def formatter():
     logging.raiseExceptions = True  # Exercise stdlib's development diagnostic path.
     secret = 'TEST_SECRET_FORMATTER_' + uuid4().hex.upper()
     local_secret = 'TEST_SECRET_LOCAL_' + uuid4().hex.upper()
-    raised = None
-    try:
-        raise RuntimeError(secret)
-    except RuntimeError:
-        try:
-            log.exception('demo.serialization', measurement=float('nan'))  # FORMATTER_SOURCE_SENTINEL
-        except Exception as error:
-            raised = type(error).__name__
-    log.info('demo.serialization_recovery')
-    return {'secrets': [secret, local_secret], 'raised': raised}
+    class HostileKey:
+        def __str__(self):
+            raise RuntimeError(secret)
+
+        def __repr__(self):
+            return local_secret
+
+    cycle = []
+    cycle.append(cycle)
+    cases = [('ordinary_object', object()), ('hostile_mapping_key', {HostileKey(): 'value'}),
+             ('cycle', cycle), ('nan', float('nan')), ('positive_infinity', float('inf')),
+             ('negative_infinity', float('-inf'))]
+    observed = []
+    for name, value in cases:
+        raised = recovery_raised = None
+        with capture_streams() as emission:
+            try:
+                raise RuntimeError(secret)
+            except RuntimeError:
+                try:
+                    log.exception('demo.serialization', case=name, measurement=value)  # FORMATTER_SOURCE_SENTINEL
+                except Exception as error:
+                    raised = type(error).__name__
+        with capture_streams() as recovery:
+            try:
+                log.info('demo.serialization_recovery', case=name)
+            except Exception as error:
+                recovery_raised = type(error).__name__
+        observed.append({'case': name, 'raised': raised, 'recovery_raised': recovery_raised,
+                         'emission': emission, 'recovery': recovery})
+    return {'secrets': [secret, local_secret], 'cases': observed}
 
 
 async def server():

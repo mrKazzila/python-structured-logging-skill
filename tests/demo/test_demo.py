@@ -125,9 +125,9 @@ class DemoTests(unittest.TestCase):
             shutil.copyfile(demo.DEMO / 'reference' / filename, project / 'app' / filename)
         backend = project / 'app/observability.py'
         backend.write_text(backend.read_text().replace(
-            'import json', 'import json\nimport math\nfrom .safe_output import configure_server',
+            'import json', 'import json\nfrom .safe_output import configure_server, sanitize',
         ).replace('def _safe(value):',
-                  'def _safe(value):\n    if isinstance(value, float) and not math.isfinite(value):\n        return None'
+                  'def _safe(value):\n    value = sanitize(value)'
         ).replace('def configure():', 'def configure():\n    configure_server()'))
         middleware = project / 'app/middleware.py'
         middleware.write_text(middleware.read_text().replace(
@@ -137,6 +137,38 @@ class DemoTests(unittest.TestCase):
                         '\nfrom .runtime_boundary import RuntimeBoundary\napp = RuntimeBoundary(app)\n')
         report = demo.check(project)
         self.assertTrue(report['passed'], report['criteria'])
+
+    def test_formatter_cases_require_emission_and_accept_safe_fallback(self):
+        spec = importlib.util.spec_from_file_location('formatter_grading', demo.DEMO / 'grading.py')
+        grading = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(grading)
+        for stack in STACKS:
+            original = demo.check(self.project(stack, fixed=True))['observations']['runtime']
+
+            def passed(runtime):
+                return next(c['passed'] for c in grading.runtime_criteria(runtime)
+                            if c['id'] == 'formatter_fallback_safety')
+
+            for index, case in enumerate(original['formatter']['cases']):
+                with self.subTest(stack=stack, case=case['case']):
+                    for defect in ('drop', 'raise', 'recovery', 'raw_stdout', 'invalid_json'):
+                        runtime = copy.deepcopy(original)
+                        target = runtime['formatter']['cases'][index]
+                        if defect == 'drop':
+                            target['emission'] = {'stdout': '', 'stderr': ''}
+                        elif defect == 'raise':
+                            target['raised'] = 'TypeError'
+                        elif defect == 'recovery':
+                            target['recovery'] = {'stdout': '', 'stderr': ''}
+                        elif defect == 'raw_stdout':
+                            target['emission']['stdout'] += 'raw formatter diagnostic\n'
+                        else:
+                            target['emission']['stderr'] += '{"event":"bad","level":"error","x":Infinity}\n'
+                        self.assertFalse(passed(runtime), (stack, case['case'], defect))
+                    runtime = copy.deepcopy(original)
+                    runtime['formatter']['cases'][index]['emission'] = {
+                        'stdout': '{"event":"logging.failed","level":"error"}\n', 'stderr': ''}
+                    self.assertTrue(passed(runtime))
 
     def test_independent_runtime_source_regressions(self):
         mutations = {
