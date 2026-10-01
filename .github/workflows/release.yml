@@ -23,6 +23,14 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Install validation dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Validate skill and examples
+        run: |
+          python scripts/validate_repo.py
+          python -m unittest discover -s tests -v
+
       - name: Validate release state
         run: |
           python3 scripts/check_release_state.py --expected-version "${GITHUB_REF_NAME}"

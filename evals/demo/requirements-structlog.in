@@ -1,0 +1,2 @@
+-r requirements-stdlib.in
+structlog==25.1.0

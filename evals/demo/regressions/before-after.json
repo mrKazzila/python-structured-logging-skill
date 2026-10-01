@@ -1,0 +1,134 @@
+{
+  "source": "Reviewed worker /private/tmp/logging-skill-review-20260925, re-run unchanged on 2026-09-25",
+  "versions": {
+    "python": "3.12.13",
+    "fastapi": "0.115.12",
+    "starlette": "0.46.2",
+    "pydantic": "2.13.5",
+    "httpx": "0.28.1",
+    "structlog": null,
+    "uvicorn": "0.34.2"
+  },
+  "snapshot_sha256": {
+    "main.py": "bf20b85b386cab1b9d3069f24ab5ac65d216714763715d6708ff55c598b03521",
+    "middleware.py": "ed2d7a83317fff5cfac2d9e65655cac416c35d16bdaca2a4e89d4eb14667962f",
+    "observability.py": "8aa000e5fb01cbaec2cf6b477d21c2c5c0d96eeca7f3df0e44817225dac78400",
+    "service.py": "c1f71420735c02a04bfffcb9b0c282974f8c62f11300b7a2d0219c3ac267dd09"
+  },
+  "before": {
+    "passed": true,
+    "passed_checks": 11,
+    "total_checks": 11,
+    "exit_code": 0
+  },
+  "after": {
+    "passed": false,
+    "passed_checks": 11,
+    "total_checks": 15,
+    "exit_code": 1,
+    "criteria": [
+      {
+        "id": "json_output",
+        "passed": true
+      },
+      {
+        "id": "http_contract",
+        "passed": true
+      },
+      {
+        "id": "provider_behavior",
+        "passed": true
+      },
+      {
+        "id": "event_contracts",
+        "passed": true
+      },
+      {
+        "id": "stable_events",
+        "passed": true
+      },
+      {
+        "id": "structured_fields",
+        "passed": true
+      },
+      {
+        "id": "single_failure_traceback",
+        "passed": true
+      },
+      {
+        "id": "no_secrets",
+        "passed": true
+      },
+      {
+        "id": "request_isolation",
+        "passed": true
+      },
+      {
+        "id": "context_cleanup",
+        "passed": true
+      },
+      {
+        "id": "original_stack",
+        "passed": true
+      },
+      {
+        "id": "whole_process_output",
+        "passed": false
+      },
+      {
+        "id": "unexpected_failure_ownership",
+        "passed": false
+      },
+      {
+        "id": "formatter_fallback_safety",
+        "passed": false
+      },
+      {
+        "id": "unexpected_500_correlation",
+        "passed": false
+      }
+    ]
+  },
+  "runtime_evidence": {
+    "whole_process_output": {
+      "records": 4,
+      "leaked_markers": [
+        "TEST_SECRET_UNEXPECTED_9B4462D3B59449AE9DBC157BC7645A43",
+        "TEST_SECRET_QUERY_4F1997048BE44E3AAA4986A9E8E5B175"
+      ],
+      "malformed_line_count": 57,
+      "selected_output_lines": [
+        "INFO:     127.0.0.1:64869 - \"GET /__evaluation_unexpected__?credential=TEST_SECRET_QUERY_4F1997048BE44E3AAA4986A9E8E5B175 HTTP/1.1\" 500 Internal Server Error",
+        "RuntimeError: TEST_SECRET_UNEXPECTED_9B4462D3B59449AE9DBC157BC7645A43"
+      ]
+    },
+    "unexpected_failure_ownership": {
+      "error_records": 1,
+      "raw_server_errors": 1
+    },
+    "formatter_fallback_safety": {
+      "raised": null,
+      "unsafe_markers": [
+        "TEST_SECRET_FORMATTER_013BE1730DCF405BA1C80973CFC2174C",
+        "--- Logging error ---",
+        "FORMATTER_SOURCE_SENTINEL"
+      ],
+      "records": 1,
+      "malformed_line_count": 35,
+      "selected_output_lines": [
+        "--- Logging error ---",
+        "RuntimeError: TEST_SECRET_FORMATTER_013BE1730DCF405BA1C80973CFC2174C",
+        "    log.exception('demo.serialization', measurement=float('nan'))  # FORMATTER_SOURCE_SENTINEL"
+      ]
+    },
+    "unexpected_500_correlation": {
+      "status": 500,
+      "response_request_id": null,
+      "expected_request_id": "req-unexpected-524c4608f7d147ddbb63192ff416e8c0",
+      "correlated_events": [
+        "request.failed",
+        "request.completed"
+      ]
+    }
+  }
+}
