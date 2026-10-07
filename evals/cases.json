@@ -106,6 +106,77 @@
         "The solution checks exception text as well as structured fields.",
         "The record retains enough operation and error-type information to diagnose the failure."
       ]
+    },
+    {
+      "id": "event_contract_discovery",
+      "should_trigger": true,
+      "fixtures": [
+        "evals/fixtures/service.py",
+        "evals/fixtures/event_consumers.py"
+      ],
+      "prompt": "Improve the invoice logs in service.py so successful charges include the amount.",
+      "criteria": [
+        "Both dotted event names remain unchanged; event_consumers.py remains unchanged.",
+        "Rendered success events include invoice_id and amount_cents; completed_total returns the total for two successful charges.",
+        "A negative charge still raises ValueError with the original message and produces one failure record; failed_invoices identifies its invoice.",
+        "Function signatures and return values remain unchanged."
+      ]
+    },
+    {
+      "id": "wrapper_api",
+      "should_trigger": true,
+      "fixtures": [
+        "evals/fixtures/wrapped_service.py"
+      ],
+      "prompt": "Add amount_cents to the invoice success event in wrapped_service.py.",
+      "criteria": [
+        "The existing EventLogger.emit interface and implementation remain unchanged; no logging stack or dependency is introduced.",
+        "Calling process_invoice emits one JSON record on stderr with the original event, invoice_id and the supplied amount_cents, without API errors.",
+        "Function signature and returned amount remain unchanged."
+      ]
+    },
+    {
+      "id": "local_change_scope",
+      "should_trigger": true,
+      "fixtures": [
+        "evals/fixtures/service.py"
+      ],
+      "prompt": "Add amount_cents to the success log in service.py.",
+      "criteria": [
+        "The success event retains its name and invoice_id and includes amount_cents in captured formatted output.",
+        "Production edits are confined to the success log; the failure path, charge implementation, signatures and return values remain unchanged.",
+        "No production logging configuration, handlers, context management or dependencies are introduced; focused verification code is allowed.",
+        "The final report identifies the formatter used for verification and does not claim full runtime safety from a representative formatter."
+      ]
+    },
+    {
+      "id": "indirect_context_activation",
+      "should_trigger": true,
+      "fixtures": [
+        "evals/fixtures/request_context.py"
+      ],
+      "prompt": "In request_context.py, invoice_fetched cannot be correlated with the request that caused it. Fix this for overlapping requests and standalone calls.",
+      "criteria": [
+        "The skill is implicitly loaded without being named in the prompt.",
+        "Overlapping requests each produce invoice_fetched and request_completed with their own request_id; event names remain unchanged.",
+        "A subsequent standalone fetch_invoice in the same task has no stale request_id.",
+        "Cleanup also occurs when fetch_invoice raises; the original exception propagates.",
+        "Function signatures and successful return values remain unchanged."
+      ]
+    },
+    {
+      "id": "unrelated_python_with_logging",
+      "should_trigger": false,
+      "fixtures": [
+        "evals/fixtures/service.py"
+      ],
+      "prompt": "Add parameter and return type annotations to charge and handle_invoice in service.py. Invoice IDs are strings and amounts are integer cents.",
+      "criteria": [
+        "The logging skill is not implicitly loaded.",
+        "The requested functions have the corresponding str/int parameter annotations and int return annotations.",
+        "Logging calls, events, fields and configuration remain unchanged; no dependencies are introduced.",
+        "Return values and exception behavior remain unchanged."
+      ]
     }
   ]
 }
