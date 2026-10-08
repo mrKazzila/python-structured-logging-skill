@@ -56,7 +56,7 @@ The skill inspects the logging stack already in use before changing anything. If
 
 - Main skill: [`plugins/python-structured-logging/skills/python-structured-logging/SKILL.md`](plugins/python-structured-logging/skills/python-structured-logging/SKILL.md)
 - Examples: [`examples/structlog`](plugins/python-structured-logging/skills/python-structured-logging/examples/structlog) and [`examples/stdlib`](plugins/python-structured-logging/skills/python-structured-logging/examples/stdlib)
-- Reference guide: [`references/Python Logging Style Guide.md`](plugins/python-structured-logging/skills/python-structured-logging/references/Python Logging Style Guide.md)
+- References: [output pipeline](plugins/python-structured-logging/skills/python-structured-logging/references/output-pipeline.md), [context lifecycle](plugins/python-structured-logging/skills/python-structured-logging/references/context-lifecycle.md), and [exceptions and sensitive data](plugins/python-structured-logging/skills/python-structured-logging/references/exceptions-and-sensitive-data.md)
 - Agent metadata: [`agents/openai.yaml`](plugins/python-structured-logging/skills/python-structured-logging/agents/openai.yaml)
 
 ## When to Use This Skill

@@ -9,3 +9,5 @@ Capture the final rendered output as well as records. Check JSON decoding where 
 At the application's configuration boundary, include framework/server/access/error/lifecycle loggers and the actual stdout/stderr or collector path, not just the application logger. Exercise an unexpected failure through that runtime: a safe application formatter is insufficient if another output path can emit raw data. Keep reusable modules free of global logging configuration.
 
 Formatter failure is part of this safety boundary. Probe non-finite numbers, unsupported objects and cyclic structured values through the public logging API, including stdlib `handleError`/diagnostic fallback. Use bounded safe normalization or a safe structured fallback: logging must not raise into application code, disclose the original exception/source through fallback, or emit invalid JSON when JSON is the output contract. Capture both streams and verify that a subsequent event still emits; silent record loss is not a successful fallback.
+
+Sources: [Python logging API](https://docs.python.org/3/library/logging.html), [logging cookbook](https://docs.python.org/3/howto/logging-cookbook.html).

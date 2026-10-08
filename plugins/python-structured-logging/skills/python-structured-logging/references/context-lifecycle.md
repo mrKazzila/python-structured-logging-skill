@@ -7,3 +7,5 @@ For a structlog application already using contextvars, check that `merge_context
 Test two overlapping requests with distinct IDs and a subsequent operation with no ID. Their outputs must not share identifiers. Thread/task boundaries and hybrid sync/async frameworks may require explicit propagation; do not assume every execution context shares the same values.
 
 For stdlib, retain the existing adapter, filter, or record factory. Check the supported Python version and adapter behavior before relying on per-call `extra` merging.
+
+Source: [structlog context variables](https://www.structlog.org/en/stable/contextvars.html).

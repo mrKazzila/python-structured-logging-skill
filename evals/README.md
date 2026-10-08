@@ -4,6 +4,12 @@ These cases evaluate agent decisions separately from deterministic repository ch
 
 For a complete generated HTTP application with before/after checks, see the [FastAPI demo](demo/README.md).
 
+## Decision coverage
+
+Compare `event_contract` with `event_contract_discovery`: the former explicitly states the contract, while the latter leaves event consumers in the project for the agent to discover. `local_change_scope` checks whether a single-field request stays local and whether verification claims match the captured boundary. `wrapper_api` exercises a mapping-based facade rather than a standard logger API.
+
+`indirect_context_activation` asks for correlation without naming logging or the skill. Together with `unrelated_python_with_logging` and `unrelated_cli`, it probes both missed activation and false positives. Inspect skill-load traces rather than inferring activation from the final code. These are unbenchmarked scenarios, not evidence of improved activation.
+
 ## Run a case
 
 1. Create a fresh temporary project and copy only the listed fixtures into it, keeping their basenames. Install any fixture dependencies in an isolated environment. Record initial file checksums.
